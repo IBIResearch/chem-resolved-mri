@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Tsanda"
+  given-names: "Artyom"
+  orcid: "https://orcid.org/0009-0009-7765-4604"
+  email: "artyom.tsanda@tuhh.de"
+  affiliation: "Section for Biomedical Imaging, University Medical Center Hamburg-Eppendorf, Hamburg, Germany; Institute for Biomedical Imaging, Hamburg University of Technology, Hamburg, Germany"
+- family-names: "Benders"
+  given-names: "Stefan"
+  orcid: "https://orcid.org/0000-0002-9823-1928"
+  affiliation: "Institute of Process Imaging, Hamburg University of Technology, Hamburg, Germany"
+- family-names: "Adrian"
+  given-names: "Muhammad"
+  orcid: "https://orcid.org/0009-0008-3634-9518"
+  affiliation: "Institute of Process Imaging, Hamburg University of Technology, Hamburg, Germany"
+- family-names: "Penn"
+  given-names: "Alexander"
+  orcid: "https://orcid.org/0000-0001-5596-6310"
+  affiliation: "Institute of Process Imaging, Hamburg University of Technology, Hamburg, Germany"
+- family-names: "Knopp"
+  given-names: "Tobias"
+  orcid: "https://orcid.org/0000-0002-1589-8517"
+  affiliation: "Section for Biomedical Imaging, University Medical Center Hamburg-Eppendorf, Hamburg, Germany; Institute for Biomedical Imaging, Hamburg University of Technology, Hamburg, Germany; Fraunhofer Research Institution for Individualized and Cell-based Medical Engineering IMTE, Lübeck, Germany"
+title: "Rapid quantitative chemical composition mapping using model-based MRI reconstruction with field inhomogeneity correction"
+date-released: 2026-07-28
+identifiers:
+  - description: arXiv preprint
+    type: other
+    value: "2607.24441"
+url: "https://arxiv.org/abs/2607.24441"

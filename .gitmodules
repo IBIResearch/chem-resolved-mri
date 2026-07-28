@@ -1,0 +1,7 @@
+[submodule "env/julia/libs/MRIReco.jl"]
+	path = env/julia/libs/MRIReco.jl
+	url = git@github.com:MagneticResonanceImaging/MRIReco.jl.git
+	branch = chem-comp-mapping
+[submodule "env/julia/libs/NFFT"]
+	path = env/julia/libs/NFFT
+	url = git@github.com:JuliaMath/NFFT.jl
