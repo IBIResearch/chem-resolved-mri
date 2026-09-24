@@ -177,9 +177,7 @@ def signed_error_stats_with_ci(errors, alpha=0.05):
         return {
             "n": n,
             "mean_err": mean_err,
-            "std_err": np.nan,
             "mean_ci": (np.nan, np.nan),
-            "std_ci": (np.nan, np.nan),
         }
 
     std_err = np.std(errors, ddof=1)
@@ -188,44 +186,35 @@ def signed_error_stats_with_ci(errors, alpha=0.05):
     half_width = t_crit * std_err / np.sqrt(n)
     mean_ci = (mean_err - half_width, mean_err + half_width)
 
-    chi2_lo = stats.chi2.ppf(alpha / 2, df=n - 1)
-    chi2_hi = stats.chi2.ppf(1 - alpha / 2, df=n - 1)
-    var = std_err**2
-    std_ci = (
-        np.sqrt((n - 1) * var / chi2_hi),
-        np.sqrt((n - 1) * var / chi2_lo),
-    )
-
     return {
         "n": n,
         "mean_err": mean_err,
-        "std_err": std_err,
         "mean_ci": mean_ci,
-        "std_ci": std_ci,
     }
 
 
-# Accuracy and precision from signed errors e_i = gt_i - est_i (voxel-wise).
+# Each ratio series is a measurement. Compute metrics per insert before
+# aggregating the repeated measurements.
 for method in methods:
-    df_method = df_inner.loc[df_inner["Method"] == method].copy()
+    insert_biases = []
+    insert_spatial_variations = []
+    for i, ground_truth in enumerate(nominal_acetone_molar_ratios):
+        estimates = concentrations[method]["ratios_inner_tube"][i]
+        insert_biases.append(ground_truth - np.mean(estimates))
+        insert_spatial_variations.append(np.std(estimates, ddof=1))
 
-    voxel_errors = (
-        df_method["Ground Truth, mol/mol"] - df_method["Estimation, mol/mol"]
-    ).to_numpy()
+    bias_ci = signed_error_stats_with_ci(insert_biases)
+    mean_spatial_variation = np.mean(insert_spatial_variations)
 
-    voxel_stats = signed_error_stats_with_ci(voxel_errors)
-
-    print(f"\n{method} (voxel-level):")
-    print(f"  n={voxel_stats['n']}")
+    print(f"\n{method} (insert-level, repeated measurements):")
+    print(f"  n={bias_ci['n']}")
     print(
         "  Bias (mean signed error): "
-        f"{voxel_stats['mean_err']:.4f} "
-        f"[95% CI: {voxel_stats['mean_ci'][0]:.4f}, {voxel_stats['mean_ci'][1]:.4f}]"
+        f"{bias_ci['mean_err']:.4f} "
+        f"[95% CI: {bias_ci['mean_ci'][0]:.4f}, {bias_ci['mean_ci'][1]:.4f}]"
     )
     print(
-        "  Precision (SD of signed error): "
-        f"{voxel_stats['std_err']:.4f} "
-        f"[95% CI: {voxel_stats['std_ci'][0]:.4f}, {voxel_stats['std_ci'][1]:.4f}]"
+        "  Spatial variation (mean within-insert SD): " f"{mean_spatial_variation:.4f}"
     )
 
 

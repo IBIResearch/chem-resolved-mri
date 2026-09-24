@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 import scienceplots  # noqa
 import seaborn as sns
-from scipy import stats
 
 plt.style.use(["science", "ieee"])
 
@@ -67,59 +66,19 @@ for i, r in enumerate(gt_molar_ratios):
     )
 
 
-def signed_error_stats_with_ci(errors, alpha=0.05):
-    errors = np.asarray(errors, dtype=float)
-    n = errors.size
-    mean_err = np.mean(errors)
-
-    if n < 2:
-        return {
-            "n": n,
-            "mean_err": mean_err,
-            "std_err": np.nan,
-            "mean_ci": (np.nan, np.nan),
-            "std_ci": (np.nan, np.nan),
-        }
-
-    std_err = np.std(errors, ddof=1)
-
-    t_crit = stats.t.ppf(1 - alpha / 2, df=n - 1)
-    half_width = t_crit * std_err / np.sqrt(n)
-    mean_ci = (mean_err - half_width, mean_err + half_width)
-
-    chi2_lo = stats.chi2.ppf(alpha / 2, df=n - 1)
-    chi2_hi = stats.chi2.ppf(1 - alpha / 2, df=n - 1)
-    var = std_err**2
-    std_ci = (
-        np.sqrt((n - 1) * var / chi2_hi),
-        np.sqrt((n - 1) * var / chi2_lo),
+print("Acetone by insert (single measurement):")
+biases = []
+for i, ground_truth in enumerate(gt_molar_ratios):
+    estimates = c[masks[i], 0]
+    mean_estimate = np.mean(estimates)
+    spatial_variation = np.std(estimates, ddof=1)
+    biases.append(ground_truth - mean_estimate)
+    print(
+        f"  Insert {i + 1}: bias={ground_truth - mean_estimate:.6f}, "
+        f"spatial variation={spatial_variation:.6f} mol/mol"
     )
 
-    return {
-        "n": n,
-        "mean_err": mean_err,
-        "std_err": std_err,
-        "mean_ci": mean_ci,
-        "std_ci": std_ci,
-    }
-
-
-# Voxel-wise signed error: e_i = gt_i - est_i
-errors = (df["Ground Truth, mol/mol"] - df["Estimation, mol/mol"]).to_numpy()
-metrics = signed_error_stats_with_ci(errors)
-
-print("Acetone across all inserts (voxel-wise):")
-print(f"  n={metrics['n']}")
-print(
-    "  Bias (mean signed error): "
-    f"{metrics['mean_err']:.6f} "
-    f"[95% CI: {metrics['mean_ci'][0]:.6f}, {metrics['mean_ci'][1]:.6f}] mol/mol"
-)
-print(
-    "  Precision (SD of signed error): "
-    f"{metrics['std_err']:.6f} "
-    f"[95% CI: {metrics['std_ci'][0]:.6f}, {metrics['std_ci'][1]:.6f}] mol/mol"
-)
+print(f"Mean bias: {np.mean(biases):.6f}")
 
 cm = 1 / 2.54  # centimeters in inches
 ax_width, ax_height = 6 * cm, 4 * cm  # 3.0/383*303, 2.0/383*303

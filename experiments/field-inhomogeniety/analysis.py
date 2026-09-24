@@ -3,9 +3,12 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import scienceplots  # noqa
-from scipy import stats
 
 plt.style.use(["science", "ieee"])
+
+
+def nh2molar(ratio):
+    return ratio / (3 - 2 * ratio)
 
 
 RESULTS_FOLDER = Path("../../data/results/field-inhomogeniety")
@@ -15,16 +18,22 @@ masks = masks[:, 40:-40]
 nh_water = 2
 nh_acetone = 6
 
-for name in ["c_img", "c_img_fi", "c_img_fi_compressed_sensing"]:
-    c = np.load(RESULTS_FOLDER / f"{name}.npy")
-    c = c[40:-40]
-    c[..., 0] /= nh_water
-    c[..., 1] /= nh_acetone
-    c = (
-        np.abs(c)
-        / np.sum(np.abs(c), axis=2, keepdims=True)
-        * np.any([masks[i] for i in range(5)], axis=0)[..., None]
-    )
+for name in ["c_img", "c_img_fi", "c_img_fi_compressed_sensing", "varpro"]:
+    if name != "varpro":
+        c = np.load(RESULTS_FOLDER / f"{name}.npy")
+        c = c[40:-40]
+        c[..., 0] /= nh_water
+        c[..., 1] /= nh_acetone
+        c = (
+            np.abs(c)
+            / np.sum(np.abs(c), axis=2, keepdims=True)
+            * np.any([masks[i] for i in range(5)], axis=0)[..., None]
+        )
+    else:
+        fat_fraction = np.load(RESULTS_FOLDER / "varpro_fat_fraction_map.npy")
+        fat_fraction = nh2molar(fat_fraction)
+        c = np.stack([1 - fat_fraction, fat_fraction], axis=-1)
+        c = c[40:-40] * np.any([masks[i] for i in range(4)], axis=0)[..., None]
 
     plt.imsave(
         RESULTS_FOLDER / f"{name}_abs_0.png",
@@ -55,7 +64,7 @@ fig_width = right + 0.5
 fig_height = top + 0.5
 
 colors = ["#7200FE", "#143BFF", "#FFDE36", "#FF7E15"]
-for name in ["c_img", "c_img_fi", "c_img_fi_compressed_sensing"]:
+for name in ["c_img", "c_img_fi", "c_img_fi_compressed_sensing", "varpro"]:
     f, ax = plt.subplots(figsize=(fig_width, fig_height))
     f.subplots_adjust(
         left=left / fig_width,
@@ -65,11 +74,17 @@ for name in ["c_img", "c_img_fi", "c_img_fi_compressed_sensing"]:
     )
     for i in range(4):
         mask = masks[i]
-        c = np.load(RESULTS_FOLDER / f"{name}.npy")
-        c = c[40:-40]
-        c[..., 0] /= nh_water
-        c[..., 1] /= nh_acetone
-        c = np.abs(c) / np.sum(np.abs(c), axis=2, keepdims=True)
+        if name == "varpro":
+            fat_fraction = np.load(RESULTS_FOLDER / "varpro_fat_fraction_map.npy")
+            fat_fraction = nh2molar(fat_fraction)
+            c = np.stack([1 - fat_fraction, fat_fraction], axis=-1)
+            c = c[40:-40] * np.any([masks[i] for i in range(4)], axis=0)[..., None]
+        else:
+            c = np.load(RESULTS_FOLDER / f"{name}.npy")
+            c = c[40:-40]
+            c[..., 0] /= nh_water
+            c[..., 1] /= nh_acetone
+            c = np.abs(c) / np.sum(np.abs(c), axis=2, keepdims=True)
         channel = 1
         values = c[..., channel][mask]
 
@@ -89,69 +104,43 @@ mean_acetone_ratios = {}
 gt_ratio = 0.25
 
 
-def signed_error_stats_with_ci(errors, alpha=0.05):
-    errors = np.asarray(errors, dtype=float)
-    n = errors.size
-    mean_err = np.mean(errors)
-
-    if n < 2:
-        return {
-            "n": n,
-            "mean_err": mean_err,
-            "std_err": np.nan,
-            "mean_ci": (np.nan, np.nan),
-            "std_ci": (np.nan, np.nan),
-        }
-
-    std_err = np.std(errors, ddof=1)
-
-    t_crit = stats.t.ppf(1 - alpha / 2, df=n - 1)
-    half_width = t_crit * std_err / np.sqrt(n)
-    mean_ci = (mean_err - half_width, mean_err + half_width)
-
-    chi2_lo = stats.chi2.ppf(alpha / 2, df=n - 1)
-    chi2_hi = stats.chi2.ppf(1 - alpha / 2, df=n - 1)
-    var = std_err**2
-    std_ci = (
-        np.sqrt((n - 1) * var / chi2_hi),
-        np.sqrt((n - 1) * var / chi2_lo),
-    )
-
-    return {
-        "n": n,
-        "mean_err": mean_err,
-        "std_err": std_err,
-        "mean_ci": mean_ci,
-        "std_ci": std_ci,
-    }
-
-
-for name in ["c_img", "c_img_fi", "c_img_fi_compressed_sensing"]:
+for name in ["c_img", "c_img_fi", "c_img_fi_compressed_sensing", "varpro"]:
     mean_acetone_ratios[name] = []
-    c = np.load(RESULTS_FOLDER / f"{name}.npy")
-    c = c[40:-40]
-    c[..., 0] /= nh_water
-    c[..., 1] /= nh_acetone
-    c = np.abs(c) / np.sum(np.abs(c), axis=2, keepdims=True)
+    if name == "varpro":
+        fat_fraction = np.load(RESULTS_FOLDER / "varpro_fat_fraction_map.npy")
+        fat_fraction = nh2molar(fat_fraction)
+        c = np.stack([1 - fat_fraction, fat_fraction], axis=-1)
+        c = c[40:-40] * np.any([masks[i] for i in range(4)], axis=0)[..., None]
+    else:
+        c = np.load(RESULTS_FOLDER / f"{name}.npy")
+        c = c[40:-40]
+        c[..., 0] /= nh_water
+        c[..., 1] /= nh_acetone
+        c = np.abs(c) / np.sum(np.abs(c), axis=2, keepdims=True)
     acetone_ratio = c[..., 1]
 
-    acetone_ratio_values = acetone_ratio[np.any([masks[i] for i in range(4)], axis=0)]
-    # Voxel-wise signed error: e_i = gt_i - est_i
-    errors = gt_ratio - acetone_ratio_values
-    metrics = signed_error_stats_with_ci(errors)
-
+    biases = []
     for i in range(4):
-        mean_acetone_ratios[name].append(np.mean(acetone_ratio[masks[i]]))
+        estimates = acetone_ratio[masks[i]]
+        mean_estimate = np.mean(estimates)
+        spatial_variation = np.std(estimates, ddof=1)
+        biases.append(gt_ratio - mean_estimate)
+        mean_acetone_ratios[name].append(mean_estimate)
+        print(
+            f"{name}, insert {i + 1}: bias={gt_ratio - mean_estimate:.4f}, "
+            f"spatial variation={spatial_variation:.4f}"
+        )
+    print(f"{name} mean bias: {np.mean(biases):.4f}")
 
-    print(f"{name}:")
-    print(f"\t n={metrics['n']}")
-    print(
-        "\t Bias (mean signed error): "
-        f"{metrics['mean_err']:.4f} "
-        f"[95% CI: {metrics['mean_ci'][0]:.4f}, {metrics['mean_ci'][1]:.4f}]"
-    )
-    print(
-        "\t Precision (SD of signed error): "
-        f"{metrics['std_err']:.4f} "
-        f"[95% CI: {metrics['std_ci'][0]:.4f}, {metrics['std_ci'][1]:.4f}]"
-    )
+
+# save CS mask
+cs_mask = np.load(RESULTS_FOLDER / "cs_mask.npy")
+cs_mask = cs_mask[40:-40]
+plt.imsave(
+    RESULTS_FOLDER / "cs_mask.png",
+    cs_mask[:, ::-1].T,
+    dpi=300,
+    cmap="gray",
+    vmin=0,
+    vmax=1,
+)

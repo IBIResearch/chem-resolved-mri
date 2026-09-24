@@ -1,5 +1,4 @@
 #!/bin/bash
 
 julia +1.9.4 --project=../../env/julia -t 4 reco.jl
-julia +1.12.7 --project=../../env/julia-varpro varpro.jl
 conda run -n chem-comp-mapping python analysis.py

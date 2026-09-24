@@ -18,7 +18,7 @@ function mask_to_rgb(mask, color)
 
 function undersampling_mask(nx, ny, acceleration, center_fraction; rng=StableRNG(42))
 	mask = falses(ny)
-	total_samples = round(Int, nx / acceleration)
+	total_samples = round(Int, ny / acceleration)
 	num_center = round(Int, ny * center_fraction)
 	center_start = div(ny - num_center, 2) + 1
 	center_end = center_start + num_center - 1
@@ -43,4 +43,26 @@ function get_arg(default::String)
 		# As a script → use ARGS[1] if available
 		return get(ARGS, 1, default)
 	end
+end
+
+
+function filter_outliers(x; k=1.5)
+    q1, q3 = quantile(x, [0.25, 0.75])
+    iqr = q3 - q1
+
+    lower = q1 - k * iqr
+    upper = q3 + k * iqr
+
+    return x[(x .>= lower) .& (x .<= upper)]
+end
+
+
+function filter_noisy_dummy_measurements(raw::RawAcquisitionData)
+    ACQ_IS_NOISE_MEASUREMENT = 2<<17
+    ACQ_IS_DUMMYSCAN_DATA = 2<<25
+	ISMRMRD_ACQ_IS_NAVIGATION_DATA = 2 << 22
+    return RawAcquisitionData(
+        raw.params,
+        filter(x -> x.head.flags & (ACQ_IS_NOISE_MEASUREMENT | ACQ_IS_DUMMYSCAN_DATA | ISMRMRD_ACQ_IS_NAVIGATION_DATA) == 0, raw.profiles),
+    )
 end

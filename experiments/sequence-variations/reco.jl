@@ -21,6 +21,9 @@ begin
 	using JLD2
 end
 
+# ╔═╡ fea741f2-5204-4273-a863-e8b3b2cb8fda
+using FFTW, Interpolations
+
 # ╔═╡ 659762fb-ba8e-4ae4-b1f7-6c209ac717b2
 html"""
 <style>
@@ -33,9 +36,10 @@ main {
 # ╔═╡ bd9c7fc3-7a86-4d8e-8e39-bc6763168cdd
 begin
 	DATA_FOLDER = "../../data"
-	EXPERIMENT_NAME = "field-inhomogeniety"
-	RAW_DATA_FOLDER = joinpath(DATA_FOLDER, "raw")
-	RESULTS_FOLDER = joinpath(DATA_FOLDER, "results", EXPERIMENT_NAME)
+	EXPERIMENT_NAME = "sequence-variations"
+	RAW_DATA_FOLDER = joinpath(DATA_FOLDER, "raw", "sequence-variations")
+	SCAN = expected_acetone_ratio_str = get_arg("tr1000.h5")
+	RESULTS_FOLDER = joinpath(DATA_FOLDER, "results", EXPERIMENT_NAME, SCAN)
 	mkpath(RESULTS_FOLDER)
 
 	n_species = 2
@@ -51,16 +55,16 @@ begin
 	acqs = []
 	echo_times = []
 	echo_time2meas_n_echo_n = Dict{Float64, Tuple{Int, Int}}()
-	for (i, meas_file_name) in enumerate(["field_inhomogeneity.h5"])
+	for (i, meas_file_name) in enumerate([SCAN])
 		mge_meas_path = joinpath(RAW_DATA_FOLDER, meas_file_name)
 
 		raw = RawAcquisitionData(ISMRMRDFile(mge_meas_path))
+		raw = filter_noisy_dummy_measurements(raw)
 		acq = AcquisitionData(raw)
 	    push!(acqs, acq)
 
-		h5open(mge_meas_path, "r") do file
-			push!(echo_times, read(file["echo_times"]))
-		end
+		echos = raw.params["TE"]
+		push!(echo_times, echos)
 
 		for (echo_n, t) in enumerate(echo_times[end])
 			if haskey(echo_time2meas_n_echo_n, t)
@@ -76,7 +80,7 @@ begin
 	echo_times_vec = vcat(echo_times...)
 	echo_times_sorted_index = sortperm(echo_times_vec);
 
-	invert_readout_for_odd_echos!(acqs)
+	# invert_readout_for_odd_echos!(acqs)
 	shift_ky!(acqs)
 end
 
@@ -185,17 +189,17 @@ md"""
 
 # ╔═╡ 714619d9-e6d7-4d91-ad91-e616da9b2bb1
 seeds = Vector{Tuple{CartesianIndex{2}, Int}}([
-	(CartesianIndex(64, 35), 1),
-	(CartesianIndex(80, 25), 2),
-	(CartesianIndex(94, 41), 3),
-	(CartesianIndex(77, 54), 4),
-	(CartesianIndex(80, 40), 5),
-	(CartesianIndex(1, 1), 6)
+	(CartesianIndex(66, 40), 1),
+	(CartesianIndex(86, 55), 2),
+	(CartesianIndex(100, 35), 3),
+	(CartesianIndex(80, 20), 4),
+	(CartesianIndex(68, 24), 5),
+	(CartesianIndex(115, 10), 6)
 ])
 
 # ╔═╡ e09ee2cf-ec4c-4c67-89b9-e263751a3a14
 begin
-	magnitude_image = abs.(adjoint(nfft_plan) * vec(mean(kDataCart(acqs[1])[:, :, 1, :, 1, 1]; dims=3)))
+	magnitude_image = mean([abs.(adjoint(nfft_plan) *  vec(kDataCart(acqs[1])[:, :, 1, 1, e, 1])) for e=1:32])
 	result = map(scaleminmax(Float64, 0.0, 256.0), magnitude_image)
 	save(joinpath(RESULTS_FOLDER, "magnitude_image.png"), result)
 	segments = seeded_region_growing(magnitude_image, seeds)
@@ -203,35 +207,39 @@ end
 
 # ╔═╡ 4d85e386-ce43-4f62-bdfa-81c53218ec66
 begin
-	masks = []
+	if SCAN == "fa10.h5"
+		masks = []
+	else
+		masks = npzread("../../data/results/sequence-variations/fa10.h5/masks.npy")
+		masks = [masks[:, :, i] for i=1:size(masks, 3)]
+	end
 
 	local p = heatmap(
-	    magnitude_image[div(nx, 4):end-div(nx, 4), :],
-	    c = :grays, aspect_ratio=:equal, showaxis=false, colorbar=false
+		magnitude_image[div(nx, 4):end-div(nx, 4), :],
+		c = :grays, aspect_ratio=:equal, showaxis=false, colorbar=false
 	)
 
 	for label in 1:5
-	    mask = labels_map(segments) .== label
-	    if label < 5
-	        mask = erode(mask)
-	    end
-	    push!(masks, mask)
-	    mask = mask[div(nx, 4):end-div(nx, 4), :]
-	    overlay = mask_to_rgb(mask, RGBA(get(ColorSchemes.lajolla100, label/length(seeds)), 0.2))
-	    p = plot!(p, overlay)
+		if SCAN == "fa10.h5"
+			mask = labels_map(segments) .== label
+			if label < 5
+				mask = erode(mask)
+			end
+			push!(masks, mask)
+		else
+			mask = masks[label]
+		end
+		mask = mask[div(nx, 4):end-div(nx, 4), :]
+		overlay = mask_to_rgb(mask, RGBA(get(ColorSchemes.lajolla100, label/length(seeds)), 0.2))
+		p = plot!(p, overlay)
 
-	    mask_center = mean(hcat([[c[1], c[2]] for c in findall(mask)]...), dims=2)
-	    annotate!(p, mask_center[2], mask_center[1], text("#$label", :black, :center, 10))
+		mask_center = mean(hcat([[c[1], c[2]] for c in findall(mask)]...), dims=2)
+		annotate!(p, mask_center[2], mask_center[1], text("#$label", :black, :center, 10))
 	end
-	npzwrite(joinpath(RESULTS_FOLDER, "masks.npy"), cat(masks...; dims=3))
+	if SCAN == "fa10.h5"
+		npzwrite(joinpath(RESULTS_FOLDER, "masks.npy"), cat(masks...; dims=3))
+	end
 	p
-end
-
-# ╔═╡ 150a7cc3-35ca-4363-91b1-57dcfd349353
-let
-	data = ComplexF64.(recos[1])
-	@save joinpath(RESULTS_FOLDER, "data.jld2") data
-	@save joinpath(RESULTS_FOLDER, "masks.jld2") masks
 end
 
 # ╔═╡ 9b8342d4-8014-4129-8e4f-f10d31249858
@@ -243,7 +251,7 @@ md"""
 begin
 	df = convert(Vector{Vector{Float32}}, [
 	    [0.0], # water
-	    [-1.735], # acetone
+	    [-1.878], # acetone
 	])
 	phi0 = convert(Vector{Float32}, [
 	    0.0,
@@ -253,12 +261,6 @@ begin
 	    [Parameters.M0_water],
 	    [Parameters.M0_acetone],
 	])
-	# uncomment to run with relaxation
-	# relaxation = [
-	# 	1/345,
-	# 	1/324,
-	# ]
-	relaxation = nothing
 end
 
 # ╔═╡ 6d6d0e0d-7aad-49c7-ad45-298928745d1a
@@ -272,7 +274,7 @@ selected_echos = echo_times_vec[echo_times_sorted_index]
 # ╔═╡ 7875c9ca-83af-4eca-83ba-222033943967
 begin
 	local n_selected_echos = length(selected_echos)
-	local species_to_echos = get_species_to_echos_mtx(n_species, n_selected_echos, selected_echos, weights, df, phi0; relaxation=relaxation)
+	local species_to_echos = get_species_to_echos_mtx(n_species, n_selected_echos, selected_echos, weights, df, phi0)
 	E = ChemCompOp(species_to_echos, nx, ny, n_species, n_selected_echos, nfft_plan)
 end
 
@@ -544,14 +546,11 @@ begin
 	end
 end
 
-# ╔═╡ 14ef9f43-7f85-4c49-a240-c92bc882764f
-f_bias = mean(water_slope_maps[masks[1] .| masks[2] .| masks[3] .| masks[4], :, 1])
-
 # ╔═╡ 2ee60c70-0664-4b05-8ca7-d15e5535430c
 begin
 	df_fi = convert(Vector{Vector{Float32}}, [
 	    [0.0],
-	    [-1.735 - f_bias],
+	    [-1.878],
 	])
 
 	cs_mtx = zeros(ComplexF32, n_species, length(selected_echos), length(selected_echos))
@@ -560,9 +559,6 @@ begin
 	        for j=1:length(df[k])
 	            cs_mtx[k, i, i] += weights[k][j]*exp.(df_fi[k][j]*echo_time*im)
 	        end
-			if relaxation !== nothing
-				cs_mtx[k, i, i] *= exp(-relaxation[k]*echo_time)
-			end
 	        cs_mtx[k, i, i] *= exp(phi0[k]*im)
 	    end
 	end
@@ -643,189 +639,6 @@ begin
 	p
 end
 
-# ╔═╡ 761abd69-da4d-47a9-8426-606b57c4dc55
-md"""
-# Compresed sensing
-"""
-
-# ╔═╡ 3f72b6a0-7285-4c76-9002-9f064a0bd67a
-begin
-	acceleration = 2
-	center_fraction = 0.1
-	mask = undersampling_mask(nx, ny, acceleration, center_fraction)
-	npzwrite(joinpath(RESULTS_FOLDER, "cs_mask.npy"), mask)
-	heatmap(mask)
-end
-
-# ╔═╡ 09f0d9b5-222e-45c3-9aba-b0de535dd8cd
-80 / sum(mask[1, :])
-
-# ╔═╡ 70544383-14a0-4f73-b39d-dbedd88f800e
-(1:80)[mask[1, :]]
-
-# ╔═╡ d898089b-c52d-4dcf-a1f3-0f38b3626a91
-begin
-	mask_idx = (LinearIndices(mask))[mask]
-	n_echos = length(selected_echos)
-	pat_total = vcat([mask_idx .+ (e-1)*nx*ny for e in 1:n_echos]...)
-	pat_total = sort(Int64.(pat_total))
-end
-
-# ╔═╡ 07948b6e-5038-4da3-85d8-aa16a85f7ff1
-begin
-	acq_full = acq_data_from_echo_selection_v2(acqs, echo_time2meas_n_echo_n, selected_echos)
-	acq_us = deepcopy(acq_full)
-	acq_us.kdata[1,1,1] = acq_full.kdata[1,1,1][pat_total, :]
-	acq_us.subsampleIndices[1] = pat_total
-end
-
-# ╔═╡ 162f19fd-dad2-4e29-846d-b82809afc546
-begin
-	L_full = nx*ny*n_echos
-	S = SamplingOp(ComplexF32; pattern=pat_total, shape=(L_full,))
-	E_fi_us = ∘(S, E_fi)
-end
-
-# ╔═╡ e0ad0122-1bf9-4abf-976c-2c2a0aac050c
-size(acq_full.kdata[1,1,1],1) == L_full
-
-# ╔═╡ 0ff26ede-2d35-467f-b05c-c939b86f8f08
-size(acq_us.kdata[1,1,1],1) == length(pat_total)
-
-# ╔═╡ 05c59f4c-126b-4f71-b1dd-90d9481a6126
-length(kData(acq_us,1,1,1)) == size(E_fi_us,1)
-
-# ╔═╡ 68ad3387-873c-47d2-bf6f-147c760feeaf
-md"""
-# L-curve
-"""
-
-# ╔═╡ a1669b6e-3821-4bb8-bae8-1a46b9280e99
-# ╠═╡ disabled = true
-#=╠═╡
-let
-	global rho_compressed_sensing = []
-	global eta_compressed_sensing = []
-	global log_lambdas_compressed_sensing = -4:4
-
-	acq = acq_data_from_echo_selection_v2(acqs, echo_time2meas_n_echo_n, selected_echos)
-	acq.kdata[1,1,1] = acq.kdata[1,1,1][pat_total, :]
-	acq.subsampleIndices[1] = pat_total
-	weights = samplingDensity(acq, (nx, n_species*ny))[1]
-	W = WeightingOp(ComplexF32; weights=weights)
-	kdata = kData(acq, 1, 1, 1, rep=1) .* weights
-    EFull = ∘(W, E_fi_us)
-
-	for log_lambda in log_lambdas_compressed_sensing
-
-		params = Dict{Symbol, Any}()
-		params[:reco] = "standard"
-		params[:reconSize] = (nx, n_species*ny)
-		params[:encodingOps] = [E_fi_us]
-		params[:solver] = ADMM
-		params[:reg] = [L2Regularization(10.0^log_lambda; shape=(nx, n_species*ny))]
-		params[:iterations] = 30
-		params[:ρ] = 0.1
-
-		x = reconstruction(acq, params);
-
-		push!(rho_compressed_sensing, norm(EFull * vec(x) .- kdata, 2))
-		push!(eta_compressed_sensing, norm(vec(x), 2))
-	end
-end
-  ╠═╡ =#
-
-# ╔═╡ 9e6d8d80-a0a8-419b-8e55-14d1a055b4e7
-# ╠═╡ disabled = true
-#=╠═╡
-let
-	p = plot(
-		log.(rho_compressed_sensing),
-		log.(eta_compressed_sensing),
-		xlabel=L"\log \eta (\lambda)",
-		ylabel=L"\log \mu (\lambda)",
-		label=nothing,
-		title="L-curve plot",
-		size=(1920/4, 1080/4),
-		dpi=300
-	)
-	i = 5
-	p = scatter!(p, [log.(rho_compressed_sensing)[i]], [log.(eta_compressed_sensing)[i]], label=L"\log(\lambda) = " * LaTeXString("$(log_lambdas_compressed_sensing[i])"))
-	global lambda_compressed_sensing = 10.0^log_lambdas_compressed_sensing[i]
-	npzwrite(joinpath(RESULTS_FOLDER, "rho_compressed_sensing.npy"), Float32.(rho_compressed_sensing))
-	npzwrite(joinpath(RESULTS_FOLDER, "eta_compressed_sensing.npy"), Float32.(eta_compressed_sensing))
-	savefig(p, joinpath(RESULTS_FOLDER, "l-curve-compressed-sensing.png"))
-	p
-end
-  ╠═╡ =#
-
-# ╔═╡ a6f1b8f9-6c4f-4cdd-b81f-b58e050baeee
-begin
-	local params = Dict{Symbol, Any}()
-	params[:reco] = "standard"
-	params[:reconSize] = (nx, n_species*ny)
-	params[:encodingOps] = [E_fi_us]
-	params[:solver] = ADMM
-	params[:reg] = [L2Regularization(1e-2; shape=(nx, n_species*ny))]
-	params[:iterations] = 30
-	params[:ρ] = 0.1
-
-	img_fi_compressed_sensing = reconstruction(acq_us, params);
-	c_img_fi_compressed_sensing = reshape(img_fi_compressed_sensing, nx, ny, n_species);
-	npzwrite(joinpath(RESULTS_FOLDER, "c_img_fi_compressed_sensing.npy"), c_img_fi_compressed_sensing)
-	nothing
-end
-
-# ╔═╡ 09594060-8ae6-4592-9cef-756018944730
-let
-	local recons = [
-	    heatmap(
-		        ((abs.(c_img_fi_compressed_sensing) ./ sum(abs.(c_img_fi_compressed_sensing); dims=3)) .* sum(masks[1:5]))[div(nx, 4):end-div(nx, 4),:,i] ,
-		        c = :grays,
-		        aspect_ratio=1.0,
-		        title="\n"*label,
-				clim=(0, 1),
-		        titlefontcolor=:white,
-				colorbar_tickfontcolor =:white,
-				topmargin=10Plots.px
-		    )
-		for (i, label) in enumerate(["Water", "Acetone"])
-	]
-
-	concentrations_fi = Dict("water"=>[], "acetone"=>[])
-	for (j, species) in enumerate(["water", "acetone"])
-		for i=1:5
-			x = mean(collect(1:size(masks[i], 1))[vec(any(masks[i], dims=2))]) - div(nx, 4)
-			y = mean(collect(1:size(masks[i], 2))[vec(any(masks[i], dims=1))])
-			val = mean((abs.(c_img_fi_compressed_sensing) ./ sum(abs.(c_img_fi_compressed_sensing); dims=3))[erode(masks[i]), j])
-			push!(concentrations_fi[species], val)
-			annotate!(recons[j], y, x, text("#$i: $(round(val, digits=3))", (val > 0.4) ? :black : :white, :center, 8))
-		end
-	end
-	open(joinpath(RESULTS_FOLDER, "mean-concentrations-cs-reco-fi_compressed_sensing.json"),"w") do f
-	  JSON.print(f, concentrations_fi, 4)
-	end
-
-	local p = plot(
-	    recons...,
-	    layout=(1, 2),
-	    plot_title="\n1H Ratio for Each Species",
-	    size=(1920/2, 1080/2),
-	    dpi=300,
-	    background_color=:black,
-	    plot_titlefontcolor=:white,
-	    plot_titlevspan=0.16,
-	    plot_titlefontvalign=:bottom,
-	    framestyle=:box,
-		showaxis=false,
-		grid=false,
-		colorbar_tickfontcolor =:white,
-		foreground_color=:white
-	)
-	savefig(p, joinpath(RESULTS_FOLDER, "cs-reco-fi_compressed_sensing.png"))
-	p
-end
-
 # ╔═╡ Cell order:
 # ╠═659762fb-ba8e-4ae4-b1f7-6c209ac717b2
 # ╠═bdaba444-746d-4c14-a707-432fb3d9a03f
@@ -843,8 +656,8 @@ end
 # ╠═714619d9-e6d7-4d91-ad91-e616da9b2bb1
 # ╠═e09ee2cf-ec4c-4c67-89b9-e263751a3a14
 # ╠═4d85e386-ce43-4f62-bdfa-81c53218ec66
-# ╠═150a7cc3-35ca-4363-91b1-57dcfd349353
 # ╟─9b8342d4-8014-4129-8e4f-f10d31249858
+# ╠═fea741f2-5204-4273-a863-e8b3b2cb8fda
 # ╠═cada972b-655a-4519-8e43-d588d5b63a86
 # ╟─6d6d0e0d-7aad-49c7-ad45-298928745d1a
 # ╠═8940791f-fcab-466a-9b5f-a971fa5f6e35
@@ -862,24 +675,8 @@ end
 # ╠═d1bac90d-b6d8-4d5a-81fb-af26bbc81b41
 # ╟─4169743a-ab2d-44a7-acff-37c54d9da129
 # ╠═00636d1c-0c72-4e2d-9773-7ec85f485879
-# ╠═14ef9f43-7f85-4c49-a240-c92bc882764f
 # ╠═2ee60c70-0664-4b05-8ca7-d15e5535430c
 # ╠═35466a05-fa3f-4ff2-91ab-cfd9b94ae3cb
 # ╟─0186ef0e-98cd-43e2-afa3-6fc0ae267156
 # ╠═1ac2dc4f-3a6b-4020-8603-bbec998f1f45
 # ╠═11ed06aa-09ba-4246-92eb-2f4bc1e1e8a4
-# ╟─761abd69-da4d-47a9-8426-606b57c4dc55
-# ╠═3f72b6a0-7285-4c76-9002-9f064a0bd67a
-# ╠═09f0d9b5-222e-45c3-9aba-b0de535dd8cd
-# ╠═70544383-14a0-4f73-b39d-dbedd88f800e
-# ╠═d898089b-c52d-4dcf-a1f3-0f38b3626a91
-# ╠═07948b6e-5038-4da3-85d8-aa16a85f7ff1
-# ╠═162f19fd-dad2-4e29-846d-b82809afc546
-# ╠═e0ad0122-1bf9-4abf-976c-2c2a0aac050c
-# ╠═0ff26ede-2d35-467f-b05c-c939b86f8f08
-# ╠═05c59f4c-126b-4f71-b1dd-90d9481a6126
-# ╟─68ad3387-873c-47d2-bf6f-147c760feeaf
-# ╠═a1669b6e-3821-4bb8-bae8-1a46b9280e99
-# ╠═9e6d8d80-a0a8-419b-8e55-14d1a055b4e7
-# ╠═a6f1b8f9-6c4f-4cdd-b81f-b58e050baeee
-# ╠═09594060-8ae6-4592-9cef-756018944730

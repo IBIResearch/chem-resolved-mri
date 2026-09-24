@@ -244,6 +244,11 @@ md"""
 # Forward Model
 """
 
+# ╔═╡ 5ead8775-8a12-4a4e-8e17-f6cf110d0892
+md"""
+## Frequency estimation
+"""
+
 # ╔═╡ 0e7f25ae-887d-459e-a8f2-f1ecd1905768
 let
     # --- Extract time and signals ---
@@ -322,6 +327,74 @@ let
     p
 end
 
+# ╔═╡ 3be0cb02-2192-4866-8173-a5fff6f5a0bc
+md"""
+## T2* estimation (run for pure acetone only)
+"""
+
+# ╔═╡ 6ea2bffc-6cf4-4f56-aec9-02d0048336e3
+function estimate_T2star(mask_n)
+	t = echo_times_vec[echo_times_sorted_index]
+    y = cat(recos...; dims=3)[:, :, echo_times_sorted_index][masks[mask_n], :]
+	y_magn = abs.(y)
+	log_y_magn = log.(y_magn)
+
+	T2_star_values = []
+	for i=1:size(y, 1)
+		df = DataFrame(
+			X = t,
+			Y = Float64.(log_y_magn[i, :]),
+		)
+		log_magn_ols = lm(@formula(Y ~ X), df)
+		R = -coef(log_magn_ols)[2]
+		T2_star = 1/R
+		push!(T2_star_values, T2_star)
+	end
+	return filter_outliers(T2_star_values)
+end
+
+# ╔═╡ 8ac278be-d2b7-4ab5-bde2-38fb9c231eb0
+begin
+	if expected_acetone_ratio_str == "1.0"
+		T2_star_values_acetone = estimate_T2star(1)
+		T2_star_values_water = estimate_T2star(2)
+		pa = histogram(T2_star_values_acetone)
+		pw = histogram(T2_star_values_water)
+		@info "T2* acetone: $(mean(T2_star_values_acetone))\nT2* water: $(mean(T2_star_values_water))"
+		npzwrite(joinpath(RESULTS_FOLDER, "T2_star_values_acetone.npy"), Float64.(T2_star_values_acetone))
+		npzwrite(joinpath(RESULTS_FOLDER, "T2_star_values_water.npy"), Float64.(T2_star_values_water))
+		plot(
+			pw, pa,
+			layout=(1, 2)
+		)
+	end
+end
+
+# ╔═╡ 4766f241-ba3d-4ef8-85dc-84116e0ee161
+let
+	t = echo_times_vec[echo_times_sorted_index]
+    y = cat(recos...; dims=3)[:, :, echo_times_sorted_index][masks[2], :]
+	y_magn = abs.(y)
+	log_y_magn = log.(y_magn)
+
+	global T2_star_values = []
+	for i=1:size(y, 1)
+		df = DataFrame(
+			X = t,
+			Y = Float64.(log_y_magn[i, :]),
+		)
+		log_magn_ols = lm(@formula(Y ~ X), df)
+		R = -coef(log_magn_ols)[2]
+		T2_star = 1/R
+		push!(T2_star_values, T2_star)
+	end
+end
+
+# ╔═╡ 5051eb11-3251-495e-ace0-3e3679220fea
+md"""
+## Parametrization
+"""
+
 # ╔═╡ cada972b-655a-4519-8e43-d588d5b63a86
 begin
 	df = convert(Vector{Vector{Float32}}, [
@@ -336,6 +409,12 @@ begin
 		[Parameters.M0_water],
 	    [Parameters.M0_acetone],
 	])
+	# uncomment to run with relaxation
+	# relaxation = [
+	# 	1/345,
+	# 	1/324,
+	# ]
+	relaxation = nothing
 
 	f = open(RESULTS_FOLDER * "/model_frequencies.json", "w")
 	JSON.print(f, Dict("acetone" => acetone_freq, "water" => water_freq), 4)
@@ -380,7 +459,7 @@ selected_echos = echo_times_vec[echo_times_sorted_index]
 # ╔═╡ 7875c9ca-83af-4eca-83ba-222033943967
 begin
 	local n_selected_echos = length(selected_echos)
-	local species_to_echos = get_species_to_echos_mtx(n_species, n_selected_echos, selected_echos, weights, df, phi0)
+	local species_to_echos = get_species_to_echos_mtx(n_species, n_selected_echos, selected_echos, weights, df, phi0; relaxation)
 	E = ChemCompOp(species_to_echos, nx, ny, n_species, n_selected_echos, nfft_plan)
 end
 
@@ -537,7 +616,13 @@ end
 # ╠═e09ee2cf-ec4c-4c67-89b9-e263751a3a14
 # ╠═4d85e386-ce43-4f62-bdfa-81c53218ec66
 # ╟─9b8342d4-8014-4129-8e4f-f10d31249858
+# ╟─5ead8775-8a12-4a4e-8e17-f6cf110d0892
 # ╠═0e7f25ae-887d-459e-a8f2-f1ecd1905768
+# ╟─3be0cb02-2192-4866-8173-a5fff6f5a0bc
+# ╠═6ea2bffc-6cf4-4f56-aec9-02d0048336e3
+# ╠═8ac278be-d2b7-4ab5-bde2-38fb9c231eb0
+# ╠═4766f241-ba3d-4ef8-85dc-84116e0ee161
+# ╟─5051eb11-3251-495e-ace0-3e3679220fea
 # ╠═cada972b-655a-4519-8e43-d588d5b63a86
 # ╟─a577da49-df44-4468-97b6-6a4fd1207a0f
 # ╠═04d5f030-0115-4cd2-bcc4-57659d4fcd23

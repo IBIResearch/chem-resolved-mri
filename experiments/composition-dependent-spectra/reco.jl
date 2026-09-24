@@ -18,7 +18,6 @@ begin
 	using ColorSchemes, Colors, StatsPlots, GLM, SavitzkyGolay
 	using DataFrames, JSON, NPZ, Plots
 	using RegularizedLeastSquares, MRIReco, LaTeXStrings
-	using JLD2
 end
 
 # ╔═╡ 659762fb-ba8e-4ae4-b1f7-6c209ac717b2
@@ -33,7 +32,7 @@ main {
 # ╔═╡ bd9c7fc3-7a86-4d8e-8e39-bc6763168cdd
 begin
 	DATA_FOLDER = "../../data"
-	EXPERIMENT_NAME = "field-inhomogeniety"
+	EXPERIMENT_NAME = "composition-dependent-spectra"
 	RAW_DATA_FOLDER = joinpath(DATA_FOLDER, "raw")
 	RESULTS_FOLDER = joinpath(DATA_FOLDER, "results", EXPERIMENT_NAME)
 	mkpath(RESULTS_FOLDER)
@@ -51,7 +50,7 @@ begin
 	acqs = []
 	echo_times = []
 	echo_time2meas_n_echo_n = Dict{Float64, Tuple{Int, Int}}()
-	for (i, meas_file_name) in enumerate(["field_inhomogeneity.h5"])
+	for (i, meas_file_name) in enumerate(["composition-dependent-spectra.h5"])
 		mge_meas_path = joinpath(RAW_DATA_FOLDER, meas_file_name)
 
 		raw = RawAcquisitionData(ISMRMRDFile(mge_meas_path))
@@ -146,6 +145,7 @@ let
 	    plot_titlefontvalign=:bottom,
 	    framestyle=:box,
 	)
+	npzwrite(joinpath(RESULTS_FOLDER, "echo-recons-magnitude.npy"), abs.(direct_reco)[div(nx, 4):end-div(nx, 4), :, :])
 	savefig(p, joinpath(RESULTS_FOLDER, "echo-recons-magnitude.png"))
 	p
 end
@@ -185,17 +185,17 @@ md"""
 
 # ╔═╡ 714619d9-e6d7-4d91-ad91-e616da9b2bb1
 seeds = Vector{Tuple{CartesianIndex{2}, Int}}([
-	(CartesianIndex(64, 35), 1),
-	(CartesianIndex(80, 25), 2),
-	(CartesianIndex(94, 41), 3),
-	(CartesianIndex(77, 54), 4),
-	(CartesianIndex(80, 40), 5),
+	(CartesianIndex(60, 46), 1),
+	(CartesianIndex(80, 51), 2),
+	(CartesianIndex(86, 31), 3),
+	(CartesianIndex(65, 25), 4),
+	(CartesianIndex(73, 38), 5),
 	(CartesianIndex(1, 1), 6)
 ])
 
 # ╔═╡ e09ee2cf-ec4c-4c67-89b9-e263751a3a14
 begin
-	magnitude_image = abs.(adjoint(nfft_plan) * vec(mean(kDataCart(acqs[1])[:, :, 1, :, 1, 1]; dims=3)))
+	magnitude_image = mean(abs.(direct_reco); dims=3)[:, :, 1]
 	result = map(scaleminmax(Float64, 0.0, 256.0), magnitude_image)
 	save(joinpath(RESULTS_FOLDER, "magnitude_image.png"), result)
 	segments = seeded_region_growing(magnitude_image, seeds)
@@ -227,13 +227,6 @@ begin
 	p
 end
 
-# ╔═╡ 150a7cc3-35ca-4363-91b1-57dcfd349353
-let
-	data = ComplexF64.(recos[1])
-	@save joinpath(RESULTS_FOLDER, "data.jld2") data
-	@save joinpath(RESULTS_FOLDER, "masks.jld2") masks
-end
-
 # ╔═╡ 9b8342d4-8014-4129-8e4f-f10d31249858
 md"""
 # Forward Model
@@ -253,12 +246,6 @@ begin
 	    [Parameters.M0_water],
 	    [Parameters.M0_acetone],
 	])
-	# uncomment to run with relaxation
-	# relaxation = [
-	# 	1/345,
-	# 	1/324,
-	# ]
-	relaxation = nothing
 end
 
 # ╔═╡ 6d6d0e0d-7aad-49c7-ad45-298928745d1a
@@ -272,7 +259,7 @@ selected_echos = echo_times_vec[echo_times_sorted_index]
 # ╔═╡ 7875c9ca-83af-4eca-83ba-222033943967
 begin
 	local n_selected_echos = length(selected_echos)
-	local species_to_echos = get_species_to_echos_mtx(n_species, n_selected_echos, selected_echos, weights, df, phi0; relaxation=relaxation)
+	local species_to_echos = get_species_to_echos_mtx(n_species, n_selected_echos, selected_echos, weights, df, phi0)
 	E = ChemCompOp(species_to_echos, nx, ny, n_species, n_selected_echos, nfft_plan)
 end
 
@@ -406,15 +393,9 @@ begin
 		end
 	end
 
-	slopes_diff = water_phases_slopes[:, 1, 1] .- water_phases_slopes[:, 1, 2]
-	slopes_diff_map = zeros(Float64, nx, ny)
-	slopes_diff_map[water_mask] .= slopes_diff
-	push!(plots, heatmap(slopes_diff_map[div(nx, 4):end-div(nx, 4), :], aspect_ratio=1, color=:grays, showaxis=false, colorbar=false, title="Slope Diff Odd/Even"))
-
-
 	local p = plot(
 	    plots...,
-	    layout=(1, 3),
+	    layout=(1, 2),
 	    plot_title="\n Field inhomodeniety map for different measurements",
 	    size=(1920, 1080/2),
 	    dpi=300,
@@ -544,8 +525,11 @@ begin
 	end
 end
 
-# ╔═╡ 14ef9f43-7f85-4c49-a240-c92bc882764f
+# ╔═╡ ff762675-4cbd-41cd-86e4-50101de4112e
 f_bias = mean(water_slope_maps[masks[1] .| masks[2] .| masks[3] .| masks[4], :, 1])
+
+# ╔═╡ 45af5d1e-6876-48bd-9cf3-a895fbb492cf
+-1.735 - f_bias
 
 # ╔═╡ 2ee60c70-0664-4b05-8ca7-d15e5535430c
 begin
@@ -560,9 +544,6 @@ begin
 	        for j=1:length(df[k])
 	            cs_mtx[k, i, i] += weights[k][j]*exp.(df_fi[k][j]*echo_time*im)
 	        end
-			if relaxation !== nothing
-				cs_mtx[k, i, i] *= exp(-relaxation[k]*echo_time)
-			end
 	        cs_mtx[k, i, i] *= exp(phi0[k]*im)
 	    end
 	end
@@ -591,6 +572,13 @@ begin
 	c_img_fi = reshape(img_fi, nx, ny, n_species);
 	npzwrite(joinpath(RESULTS_FOLDER, "c_img_fi.npy"), c_img_fi)
 	nothing
+end
+
+# ╔═╡ e14a9b4a-4ac8-45f7-a35a-89141b54af29
+begin
+	local acetone = abs.(c_img_fi)[:, :, 2] ./ 6
+	local water = abs.(c_img_fi)[:, :, 1] ./ 2
+	acetone_ratio = acetone ./ (acetone + water) .* sum(masks[1:5]);
 end
 
 # ╔═╡ 11ed06aa-09ba-4246-92eb-2f4bc1e1e8a4
@@ -643,144 +631,133 @@ begin
 	p
 end
 
-# ╔═╡ 761abd69-da4d-47a9-8426-606b57c4dc55
-md"""
-# Compresed sensing
-"""
-
-# ╔═╡ 3f72b6a0-7285-4c76-9002-9f064a0bd67a
+# ╔═╡ ad183926-1d3d-4c0e-9d69-93e9c02e0f7d
 begin
-	acceleration = 2
-	center_fraction = 0.1
-	mask = undersampling_mask(nx, ny, acceleration, center_fraction)
-	npzwrite(joinpath(RESULTS_FOLDER, "cs_mask.npy"), mask)
-	heatmap(mask)
+	n_h2o = [4.442, 3.331, 2.221, 1.110]
+	n_ac = [0.272, 0.544, 0.816, 1.088]
+
+	gt_ratios = n_ac ./ (n_ac .+ n_h2o)
+	gt_ratios = gt_ratios
 end
 
-# ╔═╡ 09f0d9b5-222e-45c3-9aba-b0de535dd8cd
-80 / sum(mask[1, :])
+# ╔═╡ 59384357-c25a-41ff-8d9b-219a17edaf45
+gt_ratios
 
-# ╔═╡ 70544383-14a0-4f73-b39d-dbedd88f800e
-(1:80)[mask[1, :]]
-
-# ╔═╡ d898089b-c52d-4dcf-a1f3-0f38b3626a91
+# ╔═╡ 54ca28cc-98cf-477d-9293-1b4d3baa7be6
 begin
-	mask_idx = (LinearIndices(mask))[mask]
-	n_echos = length(selected_echos)
-	pat_total = vcat([mask_idx .+ (e-1)*nx*ny for e in 1:n_echos]...)
-	pat_total = sort(Int64.(pat_total))
-end
-
-# ╔═╡ 07948b6e-5038-4da3-85d8-aa16a85f7ff1
-begin
-	acq_full = acq_data_from_echo_selection_v2(acqs, echo_time2meas_n_echo_n, selected_echos)
-	acq_us = deepcopy(acq_full)
-	acq_us.kdata[1,1,1] = acq_full.kdata[1,1,1][pat_total, :]
-	acq_us.subsampleIndices[1] = pat_total
-end
-
-# ╔═╡ 162f19fd-dad2-4e29-846d-b82809afc546
-begin
-	L_full = nx*ny*n_echos
-	S = SamplingOp(ComplexF32; pattern=pat_total, shape=(L_full,))
-	E_fi_us = ∘(S, E_fi)
-end
-
-# ╔═╡ e0ad0122-1bf9-4abf-976c-2c2a0aac050c
-size(acq_full.kdata[1,1,1],1) == L_full
-
-# ╔═╡ 0ff26ede-2d35-467f-b05c-c939b86f8f08
-size(acq_us.kdata[1,1,1],1) == length(pat_total)
-
-# ╔═╡ 05c59f4c-126b-4f71-b1dd-90d9481a6126
-length(kData(acq_us,1,1,1)) == size(E_fi_us,1)
-
-# ╔═╡ 68ad3387-873c-47d2-bf6f-147c760feeaf
-md"""
-# L-curve
-"""
-
-# ╔═╡ a1669b6e-3821-4bb8-bae8-1a46b9280e99
-# ╠═╡ disabled = true
-#=╠═╡
-let
-	global rho_compressed_sensing = []
-	global eta_compressed_sensing = []
-	global log_lambdas_compressed_sensing = -4:4
-
-	acq = acq_data_from_echo_selection_v2(acqs, echo_time2meas_n_echo_n, selected_echos)
-	acq.kdata[1,1,1] = acq.kdata[1,1,1][pat_total, :]
-	acq.subsampleIndices[1] = pat_total
-	weights = samplingDensity(acq, (nx, n_species*ny))[1]
-	W = WeightingOp(ComplexF32; weights=weights)
-	kdata = kData(acq, 1, 1, 1, rep=1) .* weights
-    EFull = ∘(W, E_fi_us)
-
-	for log_lambda in log_lambdas_compressed_sensing
-
-		params = Dict{Symbol, Any}()
-		params[:reco] = "standard"
-		params[:reconSize] = (nx, n_species*ny)
-		params[:encodingOps] = [E_fi_us]
-		params[:solver] = ADMM
-		params[:reg] = [L2Regularization(10.0^log_lambda; shape=(nx, n_species*ny))]
-		params[:iterations] = 30
-		params[:ρ] = 0.1
-
-		x = reconstruction(acq, params);
-
-		push!(rho_compressed_sensing, norm(EFull * vec(x) .- kdata, 2))
-		push!(eta_compressed_sensing, norm(vec(x), 2))
+	acetone_ratios_fi = []
+	for i=1:4
+		ratio_values = acetone_ratio[erode(masks[i])]
+		push!(acetone_ratios_fi, ratio_values)
 	end
 end
-  ╠═╡ =#
 
-# ╔═╡ 9e6d8d80-a0a8-419b-8e55-14d1a055b4e7
-# ╠═╡ disabled = true
-#=╠═╡
-let
-	p = plot(
-		log.(rho_compressed_sensing),
-		log.(eta_compressed_sensing),
-		xlabel=L"\log \eta (\lambda)",
-		ylabel=L"\log \mu (\lambda)",
-		label=nothing,
-		title="L-curve plot",
-		size=(1920/4, 1080/4),
-		dpi=300
-	)
-	i = 5
-	p = scatter!(p, [log.(rho_compressed_sensing)[i]], [log.(eta_compressed_sensing)[i]], label=L"\log(\lambda) = " * LaTeXString("$(log_lambdas_compressed_sensing[i])"))
-	global lambda_compressed_sensing = 10.0^log_lambdas_compressed_sensing[i]
-	npzwrite(joinpath(RESULTS_FOLDER, "rho_compressed_sensing.npy"), Float32.(rho_compressed_sensing))
-	npzwrite(joinpath(RESULTS_FOLDER, "eta_compressed_sensing.npy"), Float32.(eta_compressed_sensing))
-	savefig(p, joinpath(RESULTS_FOLDER, "l-curve-compressed-sensing.png"))
-	p
-end
-  ╠═╡ =#
-
-# ╔═╡ a6f1b8f9-6c4f-4cdd-b81f-b58e050baeee
+# ╔═╡ 53d52f57-2394-4e88-aec6-fb5c77aa636c
 begin
+	xtick = collect(0.0:0.1:1.0)
+	x = gt_ratios.*10
+	y = hcat([r[1:95] for r in acetone_ratios_fi]...)
+	p_acetone = boxplot(repeat(x, inner=95), vec(y), legend=false, xticks = (xtick*10, xtick))
+	plot!(p_acetone, [0, 0.6].*10, [0, 0.6], color="red")
+	p_acetone = plot!(p_acetone, xlabel="GT ratios", ylabel="Estimated ratios", title="Acetone")
+end
+
+# ╔═╡ 53daaea6-3f6e-40aa-85b0-4e930189894c
+md"""
+# Linear approx of the solution of ratio-dependent spectra
+"""
+
+# ╔═╡ a17a9f0f-bd57-4a0e-a6d2-755a0d6a76b3
+function run_reco(df)
+	cs_mtx = zeros(ComplexF32, n_species, length(selected_echos), length(selected_echos))
+	for (i, echo_time) in enumerate(selected_echos)
+	    for k=1:length(df)
+	        for j=1:length(df[k])
+	            cs_mtx[k, i, i] += weights[k][j]*exp.(df[k][j]*echo_time*im)
+	        end
+	        cs_mtx[k, i, i] *= exp(phi0[k]*im)
+	    end
+	end
+	cs_mtx = reshape(cs_mtx, n_species*length(selected_echos), length(selected_echos));
+	local E_fi = FieldInhomChemCompOp(nx, ny, n_species, length(selected_echos), nfft_operators, cs_mtx)
+
 	local params = Dict{Symbol, Any}()
 	params[:reco] = "standard"
 	params[:reconSize] = (nx, n_species*ny)
-	params[:encodingOps] = [E_fi_us]
-	params[:solver] = ADMM
-	params[:reg] = [L2Regularization(1e-2; shape=(nx, n_species*ny))]
-	params[:iterations] = 30
-	params[:ρ] = 0.1
+	params[:encodingOps] = [E_fi]
+	params[:solver] = CGNR
+	params[:reg] = [L2Regularization(1e-4)]
+	params[:iterations] = 100
 
-	img_fi_compressed_sensing = reconstruction(acq_us, params);
-	c_img_fi_compressed_sensing = reshape(img_fi_compressed_sensing, nx, ny, n_species);
-	npzwrite(joinpath(RESULTS_FOLDER, "c_img_fi_compressed_sensing.npy"), c_img_fi_compressed_sensing)
-	nothing
+	img = reconstruction(acq_cs_reco, params);
+	c_img = reshape(img.data, nx, ny, n_species)
 end
 
-# ╔═╡ 09594060-8ae6-4592-9cef-756018944730
+# ╔═╡ 705ba3fc-7c55-477a-998f-7249f1f71fa4
+begin
+	local acq = acq_data_from_echo_selection_v2(acqs, echo_time2meas_n_echo_n, selected_echos)
+	acetone_shifts_range = LinRange(-2.0, -1.0, 10)
+	multiple_independent_recos = []
+	for _df_acetone in acetone_shifts_range
+		local df = convert(Vector{Vector{Float32}}, [
+		    [0.0],
+		    [_df_acetone]
+		])
+		local c = run_reco(df)
+		push!(multiple_independent_recos, c)
+	end
+end
+
+# ╔═╡ ba4f0f2a-729a-416c-b823-a6b1481b2e75
+begin
+	multiple_independent_recos_cat = cat(multiple_independent_recos..., dims=4)
+	max_idx = argmax(abs.(multiple_independent_recos_cat)[:, :, 2, :]; dims=3)
+	c_img_linear_approx_ratio_dependent = cat([multiple_independent_recos_cat[:, :, k, :][max_idx] for k=1:n_species]..., dims=3)
+	npzwrite(RESULTS_FOLDER*"/c_img_linear_approx_ratio_dependent.npy", c_img_linear_approx_ratio_dependent)
+end
+
+# ╔═╡ 03f8ea17-ba8e-4ab7-b72b-5d760371d374
 let
+	p = [
+		heatmap(
+			abs.(multiple_independent_recos[i][:, :, 2])[div(nx, 4):end-div(nx, 4),:],
+			c = :grays,
+			aspect_ratio=1.0,
+			clim=(0, 1),
+			colorbar=false
+		)
+		for i in 1:length(multiple_independent_recos)
+	]
+	plot(
+		p...,
+		layout=(2, div(length(multiple_independent_recos), 2)),
+		plot_title="\nAcetone recons for different freq shifts",
+	    size=(1920, 1080/2),
+	    dpi=300,
+	    background_color=:black,
+	    plot_titlefontcolor=:white,
+	    plot_titlevspan=0.16,
+	    plot_titlefontvalign=:bottom,
+	    framestyle=:box,
+		showaxis=false,
+		grid=false,
+		colorbar_tickfontcolor =:white,
+		foreground_color=:white
+	)
+end
+
+# ╔═╡ 40513b75-407b-4885-869d-0eb79a9d6ba3
+begin
+	local acetone = abs.(c_img_linear_approx_ratio_dependent)[:, :, 2] ./ 6
+	local water = abs.(c_img_linear_approx_ratio_dependent)[:, :, 1] ./ 2
+	acetone_ratio_dynamic_lin_approx = acetone ./ (acetone + water) .* sum(masks[1:5]);
+end
+
+# ╔═╡ f7a958fd-f66e-409e-89c4-1c075c7a0144
+begin
 	local recons = [
 	    heatmap(
-		        ((abs.(c_img_fi_compressed_sensing) ./ sum(abs.(c_img_fi_compressed_sensing); dims=3)) .* sum(masks[1:5]))[div(nx, 4):end-div(nx, 4),:,i] ,
+		        ((abs.(c_img_linear_approx_ratio_dependent) ./ sum(abs.(c_img_linear_approx_ratio_dependent); dims=3)) .* sum(masks[1:5]))[div(nx, 4):end-div(nx, 4),:,i] ,
 		        c = :grays,
 		        aspect_ratio=1.0,
 		        title="\n"*label,
@@ -792,18 +769,18 @@ let
 		for (i, label) in enumerate(["Water", "Acetone"])
 	]
 
-	concentrations_fi = Dict("water"=>[], "acetone"=>[])
+	local concentrations_fi_dynamic = Dict("water"=>[], "acetone"=>[])
 	for (j, species) in enumerate(["water", "acetone"])
 		for i=1:5
 			x = mean(collect(1:size(masks[i], 1))[vec(any(masks[i], dims=2))]) - div(nx, 4)
 			y = mean(collect(1:size(masks[i], 2))[vec(any(masks[i], dims=1))])
-			val = mean((abs.(c_img_fi_compressed_sensing) ./ sum(abs.(c_img_fi_compressed_sensing); dims=3))[erode(masks[i]), j])
-			push!(concentrations_fi[species], val)
+			val = mean((abs.(c_img_linear_approx_ratio_dependent) ./ sum(abs.(c_img_linear_approx_ratio_dependent); dims=3))[erode(masks[i]), j])
+			push!(concentrations_fi_dynamic[species], val)
 			annotate!(recons[j], y, x, text("#$i: $(round(val, digits=3))", (val > 0.4) ? :black : :white, :center, 8))
 		end
 	end
-	open(joinpath(RESULTS_FOLDER, "mean-concentrations-cs-reco-fi_compressed_sensing.json"),"w") do f
-	  JSON.print(f, concentrations_fi, 4)
+	open(joinpath(RESULTS_FOLDER, "mean-concentrations-cs-reco-fi-dynamic.json"),"w") do f
+	  JSON.print(f, concentrations_fi_dynamic, 4)
 	end
 
 	local p = plot(
@@ -822,8 +799,27 @@ let
 		colorbar_tickfontcolor =:white,
 		foreground_color=:white
 	)
-	savefig(p, joinpath(RESULTS_FOLDER, "cs-reco-fi_compressed_sensing.png"))
+	savefig(p, joinpath(RESULTS_FOLDER, "cs-reco-fi-linear-approx-ratio-dependent.png"))
 	p
+end
+
+# ╔═╡ 3075012e-4885-4ef2-bd62-cbf20ebc03bc
+begin
+	acetone_ratios_fi_dynamic_lin_approx = []
+	for i=1:4
+		ratio_values = acetone_ratio_dynamic_lin_approx[erode(masks[i])]
+		push!(acetone_ratios_fi_dynamic_lin_approx, ratio_values)
+	end
+end
+
+# ╔═╡ fbac7505-51e9-47f9-bb9f-adea893b59d6
+let
+	xtick = collect(0.0:0.1:1.0)
+	x = gt_ratios.*10
+	y = hcat([r[1:95] for r in acetone_ratios_fi_dynamic_lin_approx]...)
+	p_acetone = boxplot(repeat(x, inner=95), vec(y), legend=false, xticks = (xtick*10, xtick))
+	plot!(p_acetone, [0, 0.6].*10, [0, 0.6], color="red")
+	p_acetone = plot!(p_acetone, xlabel="GT ratios", ylabel="Estimated ratios", title="Acetone")
 end
 
 # ╔═╡ Cell order:
@@ -843,7 +839,6 @@ end
 # ╠═714619d9-e6d7-4d91-ad91-e616da9b2bb1
 # ╠═e09ee2cf-ec4c-4c67-89b9-e263751a3a14
 # ╠═4d85e386-ce43-4f62-bdfa-81c53218ec66
-# ╠═150a7cc3-35ca-4363-91b1-57dcfd349353
 # ╟─9b8342d4-8014-4129-8e4f-f10d31249858
 # ╠═cada972b-655a-4519-8e43-d588d5b63a86
 # ╟─6d6d0e0d-7aad-49c7-ad45-298928745d1a
@@ -862,24 +857,24 @@ end
 # ╠═d1bac90d-b6d8-4d5a-81fb-af26bbc81b41
 # ╟─4169743a-ab2d-44a7-acff-37c54d9da129
 # ╠═00636d1c-0c72-4e2d-9773-7ec85f485879
-# ╠═14ef9f43-7f85-4c49-a240-c92bc882764f
+# ╠═ff762675-4cbd-41cd-86e4-50101de4112e
+# ╠═45af5d1e-6876-48bd-9cf3-a895fbb492cf
 # ╠═2ee60c70-0664-4b05-8ca7-d15e5535430c
 # ╠═35466a05-fa3f-4ff2-91ab-cfd9b94ae3cb
-# ╟─0186ef0e-98cd-43e2-afa3-6fc0ae267156
+# ╠═0186ef0e-98cd-43e2-afa3-6fc0ae267156
 # ╠═1ac2dc4f-3a6b-4020-8603-bbec998f1f45
+# ╠═e14a9b4a-4ac8-45f7-a35a-89141b54af29
 # ╠═11ed06aa-09ba-4246-92eb-2f4bc1e1e8a4
-# ╟─761abd69-da4d-47a9-8426-606b57c4dc55
-# ╠═3f72b6a0-7285-4c76-9002-9f064a0bd67a
-# ╠═09f0d9b5-222e-45c3-9aba-b0de535dd8cd
-# ╠═70544383-14a0-4f73-b39d-dbedd88f800e
-# ╠═d898089b-c52d-4dcf-a1f3-0f38b3626a91
-# ╠═07948b6e-5038-4da3-85d8-aa16a85f7ff1
-# ╠═162f19fd-dad2-4e29-846d-b82809afc546
-# ╠═e0ad0122-1bf9-4abf-976c-2c2a0aac050c
-# ╠═0ff26ede-2d35-467f-b05c-c939b86f8f08
-# ╠═05c59f4c-126b-4f71-b1dd-90d9481a6126
-# ╟─68ad3387-873c-47d2-bf6f-147c760feeaf
-# ╠═a1669b6e-3821-4bb8-bae8-1a46b9280e99
-# ╠═9e6d8d80-a0a8-419b-8e55-14d1a055b4e7
-# ╠═a6f1b8f9-6c4f-4cdd-b81f-b58e050baeee
-# ╠═09594060-8ae6-4592-9cef-756018944730
+# ╠═ad183926-1d3d-4c0e-9d69-93e9c02e0f7d
+# ╠═59384357-c25a-41ff-8d9b-219a17edaf45
+# ╠═54ca28cc-98cf-477d-9293-1b4d3baa7be6
+# ╠═53d52f57-2394-4e88-aec6-fb5c77aa636c
+# ╟─53daaea6-3f6e-40aa-85b0-4e930189894c
+# ╠═a17a9f0f-bd57-4a0e-a6d2-755a0d6a76b3
+# ╠═705ba3fc-7c55-477a-998f-7249f1f71fa4
+# ╠═ba4f0f2a-729a-416c-b823-a6b1481b2e75
+# ╠═03f8ea17-ba8e-4ab7-b72b-5d760371d374
+# ╠═40513b75-407b-4885-869d-0eb79a9d6ba3
+# ╠═f7a958fd-f66e-409e-89c4-1c075c7a0144
+# ╠═3075012e-4885-4ef2-bd62-cbf20ebc03bc
+# ╠═fbac7505-51e9-47f9-bb9f-adea893b59d6

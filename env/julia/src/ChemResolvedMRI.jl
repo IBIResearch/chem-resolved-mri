@@ -13,5 +13,6 @@ export Parameters
 export cs_field_inhom_forward_model, adj_cs_field_inhom_forward_model, FieldInhomChemCompOp
 export undersampling_mask
 export get_arg
+export filter_outliers, filter_noisy_dummy_measurements
 
 end # module ChemResolvedMRI

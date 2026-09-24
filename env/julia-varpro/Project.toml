@@ -1,0 +1,16 @@
+name = "VARPRO"
+uuid = "00df61b8-f4ef-45e1-a86f-3d6e2fbda2cc"
+version = "0.1.0"
+authors = ["Artyom Tsanda <artyom.tsanda@tuhh.de>"]
+
+[deps]
+B0Map = "26d27508-09c5-44d0-86be-f4e37b03a7e6"
+JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
+NPZ = "15e1cf62-19b3-5cfa-8e77-841668bca605"
+VP4Optim = "8687cf0f-8f6d-4dd6-8e27-64e326ab5325"
+
+[compat]
+B0Map = "0.1.7"
+JLD2 = "0.6.6"
+NPZ = "0.4.3"
+VP4Optim = "1.0.15"
