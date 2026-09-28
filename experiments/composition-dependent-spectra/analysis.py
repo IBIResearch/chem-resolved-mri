@@ -51,8 +51,8 @@ for method, c in zip(
 
     df = pd.DataFrame(
         {
-            "Ground Truth, mol/mol": [],
-            "Estimation, mol/mol": [],
+            "Ground Truth / mol/mol": [],
+            "Estimation / mol/mol": [],
         }
     )
 
@@ -62,8 +62,8 @@ for method, c in zip(
                 df,
                 pd.DataFrame(
                     {
-                        "Ground Truth, mol/mol": [r] * len(c[masks[i], 0]),
-                        "Estimation, mol/mol": c[masks[i], 1],
+                        "Ground Truth / mol/mol": [r] * len(c[masks[i], 0]),
+                        "Estimation / mol/mol": c[masks[i], 1],
                     }
                 ),
             ],
@@ -108,8 +108,8 @@ for method, c in zip(
     min_dist = np.min(gt_molar_ratios[1:] - gt_molar_ratios[:-1])
     sns.boxplot(
         data=df,
-        x="Ground Truth, mol/mol",
-        y="Estimation, mol/mol",
+        x="Ground Truth / mol/mol",
+        y="Estimation / mol/mol",
         fill=False,
         ax=ax,
         native_scale=True,
@@ -119,7 +119,7 @@ for method, c in zip(
         fliersize=0.5,
         color="#000000",
     )
-    ax.set_xlabel("Ground truth, mol/mol")
+    ax.set_xlabel("Ground truth / mol/mol")
     # remove labels and tick labels but not the ticks themselves
     plt.xlim(-0.05, 0.65)
     plt.ylim(-0.05, 0.65)

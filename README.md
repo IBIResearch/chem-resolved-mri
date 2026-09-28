@@ -12,6 +12,7 @@ Before proceeding, ensure you have the following software installed:
 - [Git](https://git-scm.com/install)
 - [Conda](https://github.com/conda-forge/miniforge)
 - [Juliaup](https://julialang.org/downloads/)
+- [LaTeX](https://www.tug.org/texlive/)
 
 Once the prerequisites are met, you can set up the environment and install the necessary dependencies by running the following commands in your terminal:
 ```bash
@@ -26,7 +27,7 @@ julia +1.12.7 --project=env/julia-varpro -t 4 -e 'using Pkg; Pkg.instantiate(); 
 ```
 
 
-Download the data from the [here](https://doi.org/10.15480/882.17645), place it in the `data/raw` directory. You should end up with the following structure:
+Download the data from the [here](https://doi.org/10.15480/882.18630), place it in the `data/raw` directory. You should end up with the following structure:
 ```
 ├── B0-map-validation.h5
 ├── composition-dependent-spectra.h5

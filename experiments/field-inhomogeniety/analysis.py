@@ -94,7 +94,7 @@ for name in ["c_img", "c_img_fi", "c_img_fi_compressed_sensing", "varpro"]:
     ax.set_xlim(-0.05, 1.05)
     # ax.grid(visible=True, axis='both', linestyle='-', linewidth=0.5, color='gray')
     if name == "c_img_fi_compressed_sensing":
-        ax.set_xlabel("Estimated acetone molar ratio, mol/mol")
+        ax.set_xlabel("Estimated acetone molar ratio / mol/mol")
     plt.savefig(
         RESULTS_FOLDER / f"{name}_hist.pdf", bbox_inches="tight", dpi=300, pad_inches=0
     )

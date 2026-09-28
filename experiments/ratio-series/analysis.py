@@ -12,7 +12,6 @@ plt.style.use(["science", "ieee"])
 
 RESULTS_FOLDER = Path("../../data/results/ratio-series")
 
-
 nominal_acetone_molar_ratios = np.array([0.04, 0.125, 0.25, 0.5, 0.6, 0.8, 1.0])
 
 concentrations = {}
@@ -51,8 +50,8 @@ for r in nominal_acetone_molar_ratios:
 df_frequencies = pd.DataFrame(
     {
         "GT ratio": nominal_acetone_molar_ratios,
-        "Water Frequency (Hz)": water_frequencies,
-        "Acetone Frequency (Hz)": acetone_frequencies,
+        "Water Frequency / Hz": water_frequencies,
+        "Acetone Frequency / Hz": acetone_frequencies,
     }
 )
 
@@ -62,7 +61,7 @@ print(latex_table)
 plt.figure(figsize=(3.5, 2.5))
 plt.plot(nominal_acetone_molar_ratios, acetone_frequencies, "o-")
 plt.xlabel("Ratio")
-plt.ylabel("Acetone Frequency (Hz)")
+plt.ylabel("Acetone Frequency / Hz")
 plt.grid(True, alpha=0.3)
 plt.tight_layout()
 plt.savefig(f"{RESULTS_FOLDER}/acetone_frequencies.png", bbox_inches="tight", dpi=300)
@@ -101,8 +100,8 @@ for i, r in enumerate(nominal_acetone_molar_ratios):
         df_inner_parts.append(
             pd.DataFrame(
                 {
-                    "Ground Truth, mol/mol": [r] * len(estimates),
-                    "Estimation, mol/mol": estimates,
+                    "Ground Truth / mol/mol": [r] * len(estimates),
+                    "Estimation / mol/mol": estimates,
                     "Method": [method] * len(estimates),
                 }
             )
@@ -112,8 +111,8 @@ df_inner = pd.concat(df_inner_parts, ignore_index=True)
 f, ax = plt.subplots(figsize=(3.5, 2.5))
 sns.boxplot(
     data=df_inner,
-    x="Ground Truth, mol/mol",
-    y="Estimation, mol/mol",
+    x="Ground Truth / mol/mol",
+    y="Estimation / mol/mol",
     hue="Method",
     fill=False,
     ax=ax,
@@ -131,7 +130,7 @@ sns.boxplot(
 # Add a shared-x anchor: one dashed vertical connector per GT ratio,
 # ending at the midpoint of method medians.
 median_by_group = (
-    df_inner.groupby(["Ground Truth, mol/mol", "Method"])["Estimation, mol/mol"]
+    df_inner.groupby(["Ground Truth / mol/mol", "Method"])["Estimation / mol/mol"]
     .median()
     .unstack("Method")
 )
@@ -162,7 +161,7 @@ ax.plot(
 )
 ax.set_xlim(-0.05, 1.05)
 ax.set_ylim(-0.05, 1.05)
-ax.set_xlabel("Ground truth, mol/mol")
+ax.set_xlabel("Ground truth / mol/mol")
 plt.savefig(
     f"{RESULTS_FOLDER}/calibration.pdf", bbox_inches="tight", dpi=300, pad_inches=0
 )
@@ -233,14 +232,14 @@ for i, r in enumerate(nominal_acetone_molar_ratios):
             gt_ratio = nominal_acetone_molar_ratios[i]
             for j, est_r in enumerate(estimated_ratio):
                 data.append([offset, gt_ratio - est_r])
-df = pd.DataFrame(data, columns=["Frequency offset, Hz", "Error, mol/mol"])
+df = pd.DataFrame(data, columns=["Frequency offset / Hz", "Error / mol/mol"])
 
 f, ax = plt.subplots(figsize=(3.5, 2.5))
 min_dist = np.min(nominal_acetone_molar_ratios[1:] - nominal_acetone_molar_ratios[:-1])
 sns.boxplot(
     data=df,
-    x="Frequency offset, Hz",
-    y="Error, mol/mol",
+    x="Frequency offset / Hz",
+    y="Error / mol/mol",
     fill=False,
     ax=ax,
     native_scale=True,

@@ -70,8 +70,8 @@ plt.axhline(CI[0], linestyle="--", color="#0A2B5C")
 plt.text(TRs[-1], CI[0] - 0.01, f"{CI[0]:.3f}", color="black", ha="right", va="top")
 plt.text(TRs[-1], CI[1] + 0.01, f"{CI[1]:.3f}", color="black", ha="right", va="bottom")
 plt.axhline(CI[1], linestyle="--", color="#0A2B5C")
-plt.xlabel("TR, ms")
-plt.ylabel("Bias, mol/mol")
+plt.xlabel("TR / ms")
+plt.ylabel("Bias / mol/mol")
 plt.savefig(
     BASE_RESULTS_FOLDER / "tr_errors.pdf", bbox_inches="tight", dpi=300, pad_inches=0
 )
@@ -99,7 +99,7 @@ plt.axhline(CI[0], linestyle="--", color="#0A2B5C")
 plt.text(FAs[-1], CI[0] - 0.01, f"{CI[0]:.3f}", color="black", ha="right", va="top")
 plt.text(FAs[-1], CI[1] + 0.01, f"{CI[1]:.3f}", color="black", ha="right", va="bottom")
 plt.axhline(CI[1], linestyle="--", color="#0A2B5C")
-plt.xlabel("Flip angle, °")
+plt.xlabel("Flip angle / °")
 plt.ylabel("Bias, mol/mol")
 plt.savefig(
     BASE_RESULTS_FOLDER / "fa_errors.pdf", bbox_inches="tight", dpi=300, pad_inches=0

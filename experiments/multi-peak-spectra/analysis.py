@@ -46,8 +46,8 @@ for i, label in enumerate(["acetone", "ethanol"]):
 
 df = pd.DataFrame(
     {
-        "Ground Truth, mol/mol": [],
-        "Estimation, mol/mol": [],
+        "Ground Truth / mol/mol": [],
+        "Estimation / mol/mol": [],
     }
 )
 
@@ -57,8 +57,8 @@ for i, r in enumerate(gt_molar_ratios):
             df,
             pd.DataFrame(
                 {
-                    "Ground Truth, mol/mol": [r] * len(c[masks[i], 0]),
-                    "Estimation, mol/mol": c[masks[i], 0],
+                    "Ground Truth / mol/mol": [r] * len(c[masks[i], 0]),
+                    "Estimation / mol/mol": c[masks[i], 0],
                 }
             ),
         ],
@@ -105,8 +105,8 @@ min_dist_calib = np.min(ratios_calib[1:] - ratios_calib[:-1])
 min_dist = np.min(gt_molar_ratios[1:] - gt_molar_ratios[:-1])
 sns.boxplot(
     data=df,
-    x="Ground Truth, mol/mol",
-    y="Estimation, mol/mol",
+    x="Ground Truth / mol/mol",
+    y="Estimation / mol/mol",
     fill=False,
     ax=ax,
     native_scale=True,
@@ -116,7 +116,7 @@ sns.boxplot(
     fliersize=0.5,
     color="#000000",
 )
-ax.set_xlabel("Ground truth, mol/mol")
+ax.set_xlabel("Ground truth / mol/mol")
 # remove labels and tick labels but not the ticks themselves
 plt.xlim(-0.05, 1.05)
 plt.ylim(-0.05, 1.05)
